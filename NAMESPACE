@@ -1,0 +1,41 @@
+useDynLib("Qest", .registration = TRUE)
+import(pch)
+import(survival)
+importFrom("matrixStats", "rowCumsums")
+importFrom("methods", "formalArgs")
+importFrom("graphics", "lines", "plot")
+importFrom("stats", ".getXlevels", "as.formula", "coef", "dnorm",
+           "is.empty.model", "lm.wfit", "model.matrix",
+           "model.response", "model.weights", "naprint", "offset",
+           "pbeta", "pf", "pnorm", "predict", "printCoefmat",
+           "pt", "qbeta", "qnorm", "quantile", "runif", "sd",
+           "splinefun", "symnum", "var", "approxfun",
+           "approx", "lm.fit", "model.extract", "median", "pchisq",
+           "delete.response", "model.offset", "na.pass", "napredict",
+           "naresid", "terms", "nlm", "Gamma", "dgamma", "gaussian",
+           "glm.fit", "pgamma", "poisson", "qgamma","qpois")
+importFrom("utils", "tail", "getFromNamespace")
+
+export(Qlm, Qlm.fit, summary.Qlm, Qest, Qest.control,
+       print.Qest, summary.Qest, invQ, Qcoxph, Qcoxph.control,
+       print.Qcoxph, summary.Qcoxph, survfit.Qcoxph,
+       residuals.Qcoxph, predict.Qcoxph, basehaz.Qcoxph,
+       Qnorm, Qpois, Qgamma, Qunif, wtrunc)
+
+S3method(print, Qest)
+S3method(summary, Qest)
+S3method(print, summary.Qest)
+S3method(vcov, Qest)
+S3method(confint, Qest)
+
+S3method(vcov, Qlm)
+S3method(summary, Qlm)
+S3method(print, summary.Qlm)
+
+S3method(print, Qcoxph)
+S3method(summary, Qcoxph)
+S3method(print, summary.Qcoxph)
+S3method(basehaz, Qcoxph)
+S3method(survfit, Qcoxph)
+S3method(residuals, Qcoxph)
+S3method(predict, Qcoxph)
