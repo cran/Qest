@@ -3,7 +3,7 @@ logit <- function(x){log(x) - log(1 - x)}
 pmax0 <- function (x){(x + abs(x))/2}
 dlist <- function(x1,x2){for(j in 1:length(x1)){x1[[j]] <- x1[[j]] - x2[[j]]}; x1}
 Ltau <- function(opt, tau){opt$tau <- tau; opt}
-format.perc <- function (probs, digits) paste(format(100 * probs, trim = TRUE, scientific = FALSE, digits = digits), "%")
+formatPerc <- function (probs, digits) paste(format(100 * probs, trim = TRUE, scientific = FALSE, digits = digits), "%")
 minabs <- function(x1,x2){
   i <- which(abs(x1) < abs(x2))
   out <- x2; out[i] <- x1[i]

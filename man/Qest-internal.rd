@@ -1,5 +1,107 @@
 \name{internals}
 \alias{internals}
+
+\alias{expit}
+\alias{logit}
+\alias{pmax0}
+\alias{num.fun}
+\alias{formatPerc}
+\alias{Ltau}
+\alias{minabs}
+\alias{invJ}
+\alias{tensorX}
+\alias{buildTau}
+\alias{callwtau}
+\alias{callQ}
+\alias{start.Qest}
+\alias{start.Qest.family}
+\alias{rq.fit.br2}
+
+\alias{Qest.sgs.internal}
+\alias{Qest.gs.internal}
+\alias{Qest.gs}
+\alias{Qest.newton}
+
+\alias{Qlm.bfun}
+\alias{start.Qlm}
+\alias{scalevars.Qlm}
+\alias{descalecoef.Qlm}
+\alias{Qlm.sgs.internal}
+\alias{Qlm.gs.internal}
+\alias{Qlm.gs}
+\alias{Qlm.newton}
+
+\alias{plfcox}
+\alias{scalevars.Qcoxph}
+\alias{descalecoef.Qcoxph}
+\alias{check.singularities}
+\alias{starting.points.Qcox}
+\alias{adjust.coef}
+\alias{agsurv.Qcoxph}
+\alias{basehaz.Qcoxph}
+\alias{coxsurv.fit.Qcoxph}
+\alias{seg.lm.fit1}
+
+\alias{gs}
+\alias{myg}
+\alias{dlist}
+\alias{omega}
+\alias{choose_eps}
+\alias{derQtheta}
+\alias{der2Qtheta}
+\alias{intA}
+\alias{findp}
+\alias{findAp}
+
+\alias{A_beta_fun}
+\alias{A_gamma_fun}
+\alias{A_beta_beta_fun}
+\alias{A_gamma_gamma_mix_fun}
+\alias{A_gamma_gamma_fun}
+\alias{A_beta_gamma_fun}
+\alias{coxBB}
+
+\alias{derQtheta.gamma}
+\alias{der2Qtheta.gamma}
+\alias{findAp.gamma}
+\alias{QestGamma.ee.u}
+\alias{QestGamma.ee.c}
+\alias{QestGamma.ee.ct}
+
+\alias{tau.pois}
+\alias{ppoisC}
+\alias{dpoisC}
+\alias{qpoisC.955}
+\alias{qpoisC.me}
+\alias{qpoisC.bisec}
+\alias{qpoisC}
+
+\alias{derQtheta.pois}
+\alias{der2Qtheta.pois}
+\alias{findp.pois}
+\alias{findAp.pois}
+\alias{QestPois.ee.u}
+
+\alias{QestUnif.ee.u}
+\alias{QestNorm.ee.u}
+\alias{QestNorm.ee.c}
+\alias{QestNorm.ee.ct}
+
+\alias{Qest.ee.u}
+\alias{Qest.ee.c}
+\alias{Qest.ee.ct}
+\alias{QCox.ee.c}
+\alias{QCox.ee.ct}
+\alias{Qlm.ee.u}
+
+\alias{Qest.covar}
+\alias{Qcox.covar}
+\alias{Qlm.covar}
+
+\alias{Loss}
+\alias{coxLoss}
+\alias{qlmLoss}
+
 \alias{print.Qest}
 \alias{print.summary.Qest}
 \alias{confint.Qest}
@@ -12,7 +114,6 @@
 \alias{print.Qcoxph}
 \alias{summary.Qcoxph}
 \alias{print.summary.Qcoxph}
-\alias{basehaz.Qcoxph}
 \alias{survfit.Qcoxph}
 \alias{residuals.Qcoxph}
 \alias{predict.Qcoxph}
@@ -26,7 +127,7 @@ expit(x)
 logit(x)
 pmax0(x)
 num.fun(dx,fx)
-format.perc(probs, digits)
+formatPerc(probs, digits)
 Ltau(opt, tau)
 minabs(x1,x2)
 invJ(J, type)
@@ -64,6 +165,7 @@ check.singularities(X, scaleVars)
 starting.points.Qcox(X, Y, n, w, mf, knots)
 adjust.coef(theta)
 agsurv.Qcoxph(y, x, wt, risk, fit)
+basehaz.Qcoxph(fit, centered = TRUE, se.fit = FALSE)
 coxsurv.fit.Qcoxph(ctype, stype, se.fit, varmat, cluster,
   y, x, wt, risk, position, strata, oldid, y2, x2, risk2,
   strata2, id2, unlist = TRUE, fit)
@@ -156,7 +258,6 @@ qlmLoss(theta, y, X, w, bfun)
 \method{summary}{Qcoxph}(object, conf.int = 0.95, scale = 1, \ldots)
 \method{print}{summary.Qcoxph}(x, digits = max(getOption("digits") - 3, 3),
   signif.stars = getOption  ("show.signif.stars"), \ldots)
-\method{basehaz}{Qcoxph}(fit, centered = TRUE, se.fit = FALSE)
 \method{survfit}{Qcoxph}(formula, newdata, se.fit = TRUE, conf.int = 0.95,
   individual = FALSE, stype = 2, ctype, conf.type = c("log", "log-log",
   "plain","none", "logit", "arcsin"), censor = TRUE, start.time, id,
@@ -168,7 +269,6 @@ qlmLoss(theta, y, X, w, bfun)
   "terms", "survival"), se.fit = FALSE, na.action = na.pass,
   terms = names(object$assign), collapse, reference = c("strata", "sample"),
   \ldots)
-
 }
 \keyword{internal}
 \value{
