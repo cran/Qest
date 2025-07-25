@@ -37,7 +37,7 @@ additional arguments for \code{wtau}.
 }
 }
 \details{
-This function estimates a proportional hazards model, allowing for right-censored and left-truncated data. The syntax and output of \code{Qcoxph} are almost identical to those of \code{\link{coxph}}, but the parameters are estimated using Q-estimation (Sottile and Frumento, 2020). This method can be used to obtain outlier-robust estimators of the regression coefficients.
+This function estimates a proportional hazards model, allowing for right-censored and left-truncated data. The syntax and output of \code{Qcoxph} are almost identical to those of \code{\link[survival]{coxph}}, but the parameters are estimated using Q-estimation (Sottile and Frumento, 2020). This method can be used to obtain outlier-robust estimators of the regression coefficients.
 
 The quantile function of a proportional hazards model is given by
 \deqn{Q(\tau | x) = H0^{-1}(-exp{-x'\beta} log(1 - \tau))}
@@ -48,14 +48,14 @@ Estimation is carried out by finding the zeroes of a set of integrals equation. 
 The estimation algorithm is briefly described in the documentation of \code{\link{Qcoxph.control}}.
 }
 \value{
-an object of classes \dQuote{Qcoxph}, \dQuote{coxph}, and \dQuote{Qest}. See \code{\link{coxph.object}} for details. All the S3 methods that are available for \dQuote{coxph} objects will also work with a \dQuote{Qcoxph} object.
+an object of classes \dQuote{Qcoxph}, \dQuote{coxph}, and \dQuote{Qest}. See \code{\link[survival]{coxph.object}} for details. All the S3 methods that are available for \dQuote{coxph} objects will also work with a \dQuote{Qcoxph} object.
 
 An object of class \dQuote{Qcoxph} is a list containing at least the following components:
 
 \item{coefficients}{a named vector of coefficients.}
 \item{var}{the covariance matrix of the coefficients.}
 \item{iter}{number of iterations used.}
-\item{linear.predictors}{the vector of linear predictors, one per subject. Note that this vector has not been centered, see \code{\link{predict.coxph}} for details.}
+\item{linear.predictors}{the vector of linear predictors, one per subject. Note that this vector has not been centered, see \code{\link[survival]{predict.coxph}} for details.}
 \item{residuals}{the martingale residuals.}
 \item{means}{vector of column means of the X matrix. Subsequent survival curves are adjusted to this value.}
 \item{n}{the number of observations used in the fit.}

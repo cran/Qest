@@ -12,8 +12,8 @@
 \tabular{ll}{
 Package: \tab Qest\cr
 Type: \tab Package\cr
-Version: \tab 1.0.1\cr
-Date: \tab 2024-01-22\cr
+Version: \tab 1.0.2\cr
+Date: \tab 2025-07-25\cr
 License: \tab GPL-2\cr
 }
 

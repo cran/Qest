@@ -1,4 +1,4 @@
-aa59200bfd027bb931515e551d84670e *DESCRIPTION
+61e991eaf0c39b8d5f9f546d6fa1a0dc *DESCRIPTION
 bc63637b6103148f5f1ef348c57e20ef *NAMESPACE
 645f894cb161c5217162f38be8f955b5 *R/Qcoxph.r
 2cba79f815d48ffd0a5ee26bd234ed1b *R/Qcoxph_S3methods.r
@@ -20,12 +20,12 @@ b6ab88884f0648e6b9aeb1e9225389de *R/Qest_ee.R
 d986ed95ddcfd053891c9e7f90d692d8 *R/familyNormal.r
 8eddd742496941aa8774427aa5631a2b *R/familyPoisson.r
 fc7252c0e712bf4ebb82726c53d77cb8 *R/familyUniform.r
-6940ef08a203a01c1fb45d84f0e602ab *build/partial.rdb
-eed13c52834d0884f96f7bbb830be7b0 *man/Qcoxph.Rd
+f8928dab5be42a8b31bc6b7e328816d0 *build/partial.rdb
+1fa00b3de4e3b24d4466c42d03ed3162 *man/Qcoxph.Rd
 4a5e801204ba9c4c17d22cdc3d7781b8 *man/Qcoxph.control.Rd
 1f2490f1d6535fc01d89d03cb60bf99c *man/Qest-internal.rd
-0f16cd0483e18878b6fef2c11be32bca *man/Qest-package.Rd
-20efac1091bed977d27f5cfdd2f36a0f *man/Qest.control.Rd
+5438ae69713b4da3e520761670d74097 *man/Qest-package.Rd
+0c84259969e5a839a2e6b48fd3c04a84 *man/Qest.control.Rd
 e372b08b84982bafd31aee9204843c7c *man/Qest.rd
 0271a483daf41027eab244035b94a77b *man/Qfamily.rd
 627ecd19496aae3a826e4d2dbe7614db *man/Qlm.Rd

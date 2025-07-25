@@ -1,7 +1,7 @@
 Package: Qest
 Type: Package
 Title: Quantile-Based Estimator
-Version: 1.0.1
+Version: 1.0.2
 Authors@R: c(person("Gianluca", "Sottile", role=c("aut", "cre"), email = "gianluca.sottile@unipa.it"),
 	     person("Paolo", "Frumento", role=c("aut")))
 Author: Gianluca Sottile [aut, cre],
@@ -14,6 +14,6 @@ URL:
 License: GPL (>= 2)
 Encoding: UTF-8
 NeedsCompilation: yes
-Packaged: 2024-01-23 12:44:22 UTC; gianlucasottile
+Packaged: 2025-07-25 10:58:26 UTC; gianlucasottile
 Repository: CRAN
-Date/Publication: 2024-01-23 13:42:53 UTC
+Date/Publication: 2025-07-25 11:20:02 UTC

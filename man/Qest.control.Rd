@@ -28,7 +28,7 @@ Logical. If \code{FALSE} (the default), step (i) is not performed, and the provi
 }
 }
 \description{
-Auxiliary function for controlling \code{Qest} fitting. Estimation proceeds in three steps: (i) evaluation of starting points; (iia) stochastic gradient-based optimization (iib) standard gradient-based optimization; and (iii) Newton-Raphson. Step (i) is initialized at the provided starting values (the \code{start} argument of \code{Qest}), and utilizes a preliminary flexible model, estimated with \code{\link{pchreg}}, to generate a cheap guess of the model parameters. If you have good starting points, you can skip step (i) by setting \code{restart = FALSE}. Steps (iia) and (iib) find an approximate solution, and make sure that the Jacobian matrix is well-defined. Finally, step (iii) finds a more precise solution.
+Auxiliary function for controlling \code{Qest} fitting. Estimation proceeds in three steps: (i) evaluation of starting points; (iia) stochastic gradient-based optimization (iib) standard gradient-based optimization; and (iii) Newton-Raphson. Step (i) is initialized at the provided starting values (the \code{start} argument of \code{Qest}), and utilizes a preliminary flexible model, estimated with \code{\link[pch]{pchreg}}, to generate a cheap guess of the model parameters. If you have good starting points, you can skip step (i) by setting \code{restart = FALSE}. Steps (iia) and (iib) find an approximate solution, and make sure that the Jacobian matrix is well-defined. Finally, step (iii) finds a more precise solution.
 }
 \note{Step (i) is not performed, and \code{restart} is ignored, if the quantile function is one of the available \code{\link{Qfamily}}.}
 \details{
