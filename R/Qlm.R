@@ -1,238 +1,165 @@
-# start = beta only, sigma is not included.
-
+#' Q-Estimation of Linear Regression Models
+#'
+#' Fits a linear model with normal homoskedastic errors,
+#' \eqn{Q(\tau \mid x) = x^\top\beta + \sigma\Phi^{-1}(\tau)}, with the
+#' Q-estimator of Sottile and Frumento (2022). The estimating equations and the
+#' Hessian have closed forms (Appendix D1 of the paper), and the estimator is
+#' fast and robust to outliers in the response.
+#'
+#' @param formula,data,subset,na.action,contrasts as in [stats::lm()].
+#' @param weights an optional vector of non-negative (sampling) weights; the
+#'   standard errors do not depend on their scale.
+#' @param start optional starting values for the regression coefficients
+#'   (excluding \eqn{\sigma}).
+#' @param wtau an optional weighting function \eqn{w(\tau)}, e.g. [wtrunc()].
+#' @param control a list created by [Qest.control()].
+#' @param ... additional arguments of `wtau`.
+#' @param y,X,w for `Qlm.fit`: the response, the design matrix and the weights.
+#'
+#' @details
+#' `Qlm(formula)` estimates the same model as `Qest(formula, Q = Qnorm)`, with
+#' a much richer output. Censored and truncated data are not allowed (use
+#' [Qest()] with `Q = Qnorm`). Standard errors are computed with the sandwich
+#' formula, and the tests in [summary.Qlm()] are based on the asymptotic normal
+#' distribution.
+#'
+#' @return `Qlm` returns an object of class `c("Qlm", "Qest")` with items
+#' \item{coefficients, std.errs, covar}{the estimated regression coefficients,
+#'   their standard errors and covariance matrix.}
+#' \item{dispersion}{the estimated \eqn{\sigma^2}.}
+#' \item{sigma}{the estimated \eqn{\sigma}, with attribute `"std.err"` (the
+#'   standard error of \eqn{\log\sigma}).}
+#' \item{residuals, fitted.values}{residuals and fitted values.}
+#' \item{CDF}{the fitted \eqn{F(y_i \mid x_i)}.}
+#' \item{obj.function}{the minimized loss.}
+#' \item{gradient, hessian}{the estimating equations and the Hessian of the loss
+#'   at the solution (including \eqn{\log\sigma}).}
+#' \item{covar.full}{the covariance matrix of \eqn{(\log\sigma, \beta)}.}
+#' and `rank`, `df.residual`, `weights`, `converged`, `n.it`, `call`, `terms`,
+#' `model`, `xlevels`, `contrasts`, `na.action`. `Qlm.fit` returns a similar list.
+#' @references Sottile, G. and Frumento, P. (2022). Robust estimation and
+#'   regression with parametric quantile functions. *Computational Statistics
+#'   and Data Analysis*, 171, 107471. \doi{10.1016/j.csda.2022.107471}
+#' @seealso [summary.Qlm()], [predict.Qlm()], [Qest()]
+#' @examples
+#' set.seed(1234)
+#' n <- 100
+#' x1 <- rnorm(n)
+#' x2 <- runif(n, 0, 3)
+#' y <- rnorm(n, 4 + x1 + 2 * x2, 1)
+#' y[1:5] <- y[1:5] + 20      # outliers
+#'
+#' m1 <- Qlm(y ~ x1 + x2)
+#' summary(m1)
+#' m2 <- Qlm(y ~ x1 + x2, wtau = wtrunc, delta.left = 0.05, delta.right = 0.05)
+#' cbind(lm = coef(lm(y ~ x1 + x2)), Qlm = coef(m1), Qlm.trunc = coef(m2))
+#' @export
 Qlm <- function(formula, data, subset, weights, na.action, start = NULL, contrasts = NULL,
-                wtau = NULL, control = Qest.control(), ...){
-
+                wtau = NULL, control = Qest.control(), ...) {
   cl <- match.call()
   mf <- match.call(expand.dots = FALSE)
-  m <- match(c("formula", "data", "subset", "weights", "na.action", "offset"), names(mf), 0L)
+  m <- match(c("formula", "data", "subset", "weights", "na.action"), names(mf), 0L)
   mf <- mf[c(1L, m)]
   mf$drop.unused.levels <- TRUE
-  mf[[1L]] <- as.name("model.frame")
+  mf[[1L]] <- quote(stats::model.frame)
   mf <- eval(mf, parent.frame())
   mt <- attr(mf, "terms")
-  y <- model.response(mf)
-
-  if(any((w <- model.weights(mf)) < 0)){stop("negative 'weights'")}
-  if (!is.null(w) && !is.numeric(w)) stop("'weights' must be a numeric vector")
-  if(is.null(w)){w <- rep.int(1, nrow(mf)); alarm <- FALSE}
-  else{
-    alarm <- (w == 0)
-    sel <- which(!alarm)
-    mf <- mf[sel,]
-    y <- y[sel]
-    w <- w[sel]
-    w <- w / mean(w)
+  if (stats::is.empty.model(mt)) stop("the model has no covariates and no intercept", call. = FALSE)
+  if (!is.null(stats::model.offset(mf))) stop("offsets are not supported", call. = FALSE)
+  y <- stats::model.response(mf, "numeric")
+  if (inherits(y, "Surv") || is.matrix(y)) stop("the response must be a numeric vector (use Qest with Q = Qnorm for censored data)", call. = FALSE)
+  w <- check_weights(stats::model.weights(mf), nrow(mf))
+  na.act <- attr(mf, "na.action")
+  if (any(w == 0)) {
+    warning("observations with zero weight are dropped", call. = FALSE)
+    keep <- w > 0
+    mf <- mf[keep, , drop = FALSE]; y <- y[keep]; w <- w[keep]
   }
-  if(any(alarm)){warning("observations with null weight will be dropped")}
-  if((n <- nrow(mf)) == 0){stop("zero non-NA cases")}
-
-  if (is.empty.model(mt)) {
-    x <- NULL
-    z <- list(coefficients = if(is.matrix(y)) matrix(NA_real_, 0, ncol(y)) else numeric(),
-              residuals = y, fitted.values = 0 * y, weights = w, rank = 0L,
-              df.residual = if(!is.null(w)) sum(w != 0) else if (is.matrix(y)) nrow(y) else length(y))
-    if(!is.null(offset)) {
-      z$fitted.values <- rep(0, n)
-      z$residuals <- y
-    }
-  }
-  else{
-    x <- model.matrix(mt, mf, contrasts)
-    z <- Qlm.fit(y, x, w, start, wtau, control, ...)
-  }
-  z$na.action <- attr(mf, "na.action")
+  if (nrow(mf) == 0) stop("zero non-NA cases", call. = FALSE)
+  x <- stats::model.matrix(mt, mf, contrasts)
+  z <- Qlm.fit(y, x, w, start, wtau, control, ...)
+  z$na.action <- na.act
   z$contrasts <- attr(x, "contrasts")
-  z$xlevels <- .getXlevels(mt, mf)
+  z$xlevels <- stats::.getXlevels(mt, mf)
   z$call <- cl
   z$terms <- mt
   z$model <- mf
-  class(z) <- c("Qlm", "lm", "Qest")
+  class(z) <- c("Qlm", "Qest")
+  if (!z$converged) warning("the algorithm did not converge", call. = FALSE)
   z
 }
 
-Qlm.fit <- function(y, X, w = rep(1, nobs), start = NULL, wtau = NULL,
-                    control = Qest.control(), ...){
-
-  if(is.null(wtau)) wtau <- function(tau, ...) rep(1, length(tau))
-
-  #### check singularities
-  QR <- qr(X)
-  nok <- (abs(diag(qr.R(QR))) < 1e-6)
-  ok <- !nok
+#' @rdname Qlm
+#' @export
+Qlm.fit <- function(y, X, w = rep(1, nobs), start = NULL, wtau = NULL, control = Qest.control(), ...) {
+  control <- do.call(Qest.control, control)
+  X <- as.matrix(X)
   nobs <- nrow(X); nvars <- ncol(X)
-  rank <- QR$rank
-  assign <- attr(X, "assign")
-  QR <- structure(QR[c("qr", "qraux", "pivot", "rank")], class = "qr")
+  if (length(y) != nobs) stop("'y' and 'X' have different numbers of observations", call. = FALSE)
+  if (is.null(colnames(X))) colnames(X) <- paste0("X", seq_len(nvars))
+  w <- check_weights(w, nobs); w <- w / mean(w)
+  if (!is.null(wtau)) {
+    if (!is.function(wtau)) stop("'wtau' must be a function", call. = FALSE)
+    split_dots(list(...), wtau)
+  } else if (length(list(...))) stop("arguments in '...' are only allowed with 'wtau'", call. = FALSE)
+  if (is.null(wtau)) wtau <- function(tau, ...) rep(1, length(tau))
 
-  xnames <- dimnames(X)[[2L]]
-  ynames <- names(y)
+  ok <- independent_cols(X)
+  rank <- sum(ok)
+  xnames <- colnames(X)
+  if (any(!ok)) warning("some variables were dropped because of collinearity: ", paste(xnames[!ok], collapse = ", "),
+                        call. = FALSE)
   X <- X[, ok, drop = FALSE]
-
-  #### scale vars
   X0 <- X; y0 <- y
-  scaleVars <- scalevars.Qlm(X, y)
-  X <- scaleVars$X; y <- scaleVars$y
+  sv <- scalevars.Qlm(X, y)
+  X <- sv$X; y <- sv$y; ss <- sv$Stats
 
-  # starting points
-  theta0 <- start.Qlm(X, y, w, start, ok, scaleVars$Stats)
-  if(!is.null(start)){
-    if(length(start) != ncol(X)){stop("length(start) does not match the number of predictors")}
-    if(any(is.na(start))){stop("NAs are not allowed in 'start'")}
-
-    ss <- scaleVars$Stats
-    start[ss$int] <- start[ss$int] - ss$my*ss$is.int
-    start <- start*10/(ss$My - ss$my)
-    start[ss$vars] <- (start*ss$sX)[ss$vars]
-    start[ss$int] <- start[ss$int] + sum((start*ss$mX/ss$sX)[ss$vars])
-    theta0[-1] <- start
+  # starting points: median regression and a robust estimate of sigma
+  m0 <- rq_fnb(X, y, tau = 0.5)
+  s0 <- diff(stats::quantile(m0$residuals, c(0.3, 0.7), names = FALSE)) / diff(stats::qnorm(c(0.3, 0.7)))
+  theta0 <- c(log(max(s0, 1e-3)), m0$coefficients)
+  if (!is.null(start)) {
+    if (length(start) != nvars) stop("length(start) does not match the number of predictors", call. = FALSE)
+    if (anyNA(start)) stop("NAs are not allowed in 'start'", call. = FALSE)
+    st <- start[ok]
+    st[ss$int] <- st[ss$int] - ss$my * ss$is.int
+    st <- st * 10 / (ss$My - ss$my)
+    st[ss$vars] <- (st * ss$sX)[ss$vars]
+    st[ss$int] <- st[ss$int] + sum((st * ss$mX / ss$sX)[ss$vars])
+    theta0[-1] <- st
   }
-  # m0 <- lm.wfit(X, y, w)
-  # theta0 <- c(log(sd(m0$residuals)), m0$coefficients)
-  # if(!is.null(start)){
-  #   if(length(start) != ncol(X)){stop("length(start) does not match the number of predictors")}
-  #   if(any(is.na(start))){stop("NAs are not allowed in 'start'")}
-  #
-  #   ss <- scaleVars$Stats
-  #   start[ss$int] <- start[ss$int] - ss$my*ss$is.int
-  #   start <- start*10/(ss$My - ss$my)
-  #   start[ss$vars] <- (start*ss$sX)[ss$vars]
-  #   start[ss$int] <- start[ss$int] + sum((start*ss$mX/ss$sX)[ss$vars])
-  #   theta0[-1] <- start
-  # }
 
-  # assign arguments in control list
-  tol <- control$tol
-  # c_1 <- 1e-4
-  # fac <- .5
-  epsilon <- tol
-  maxit <- control$maxit; if(is.null(maxit)){maxit <- 50 + 25*rank}
-  safeit <- control$safeit; if(is.null(safeit)){safeit <- 10 + 5*rank}
-  display <- control$display
-  alpha0 <- control$alpha0; if(is.null(alpha0)){alpha0 <- 0.01  / length(theta0)} # For gradient step
   bfun <- Qlm.bfun(wtau, ...)
-  fit.ok <- count <- FALSE
-
-  while(!fit.ok){
-    if(count > 0 & display){cat("\n\n Non-invertible Jacobian matrix. Restarting... \n\n")}
-    fit <- try(Qlm.newton(theta = theta0, type = "u", tol = tol, maxit = maxit, safeit = safeit,
-                          alpha0 = alpha0, display = display, y = y, X = X, w = w, bfun = bfun),
-               silent = FALSE)
-
-    fit.ok <- (!inherits(fit, "try-error"))
-    if(fit.ok){
-      theta1 <- descalecoef.Qlm(fit$theta, scaleVars$Stats)
-      L1<- qlmLoss(theta1, y0, X0, w, bfun)
-      temp <- Qlm.ee.u(theta1, X0, w, bfun, L1, J = TRUE)
-      g <- temp$g / nobs
-      H <- temp$H
-      covar <- try(Qlm.covar(temp$g.i, w, H), silent = TRUE)
-      fit.ok <- !(inherits(covar, "try-error"))
-    }
-    else{
-      count <- count + 1
-      if(count == 5){stop("Could not fit the model (non-invertible Jacobian matrix).
-        Is the model identifiable? Try with better starting points.
-        Please, do not use Qest to fit discrete distributions.")}
-      alpha0 <- alpha0 / 5
-      maxit <- round(maxit * 1.25)
-      safeit <- round(safeit * 1.5)
-      theta <- fit$theta - 1e-3
-    }
+  eefun <- function(th, J, yy = y, XX = X) {
+    L <- qlmLoss(th, yy, XX, w, bfun)
+    G <- Qlm.ee.u(th, XX, w, bfun, L, J = J)
+    if (any(!is.finite(G$g)) || (J && any(!is.finite(G$H)))) return(NULL)
+    list(g = G$g, g.i = G$g.i, J = G$H, loss = L)
   }
+  fit <- qest_solve(theta0, eefun, nobs, control)
 
-  # L0 <- qlmLoss(theta0, y, X, w, bfun)
-  # temp <- Qlm.ee.u(theta0, X, w, bfun, L0, J = FALSE)
-  # g <- temp$g
-  #
-  # alpha0 <-  control$alpha0; if(is.null(alpha0)){alpha0 <- 0.05}
-  # alpha <- alpha0
-  # for(i in 1:safeit){
-  #   Step <- -g
-  #   dtg <- sum(Step * g)
-  #   cond <- TRUE
-  #   while(cond){
-  #     theta1 <- theta0 + alpha*Step
-  #     L1 <- qlmLoss(theta1, y, X, w, bfun)
-  #     cond <- (L1$Loss > L0$Loss + c_1*alpha*dtg)
-  #     alpha <- fac * alpha
-  #     if(alpha <= tol) break
-  #   }
-  #   temp <- Qlm.ee.u(theta1, X, w, bfun, L1, J = FALSE)
-  #   g <- temp$g
-  #   nmg <- max(abs(g))
-  #
-  #   if(display & i == 1) cat(" Preliminary gradient-based iterations: \n")
-  #   if(display) cat("Iter = ", formatC(i, digits = 0, width = 3, format = "d"),
-  #                   " alpha = ", formatC(alpha*2, digits = 9, width = 10, format = "f"),
-  #                   " --- ||g||^2 = ", formatC(sum(g^2), digits = 15, width = 16, format = "f"),
-  #                   " --- max |g| = ", formatC(nmg, digits = 9, width = 10, format = "f"),"\n",sep = "")
-  #
-  #   if(nmg < tol){break}
-  #   alpha <- alpha0
-  #   L0 <- L1; theta0 <- theta1
-  # }
-  #
-  # temp <- Qlm.ee.u(theta1, X, w, bfun, L1, J = TRUE)
-  # g <- temp$g; H <- temp$H
-  #
-  # alpha0 <-  alpha <- 1
-  # for(i in 1:maxit){
-  #   Step <- -(g %*% solve(H + .0001*diag(ncol(H))))
-  #   dtg <- sum(Step * g)
-  #   cond <- TRUE
-  #   while(cond){
-  #     theta1 <- theta0 + alpha*Step
-  #     L1 <- qlmLoss(theta1, y, X, w, bfun)
-  #     cond <- (L1$Loss > L0$Loss + c_1*alpha*dtg)
-  #     alpha <- fac * alpha
-  #     if(alpha <= tol) break
-  #   }
-  #   temp <- Qlm.ee.u(theta1, X, w, bfun, L1, J = TRUE)
-  #   g <- temp$g; H <- temp$H
-  #   nmg <- max(abs(g))
-  #
-  #   if(display & i == 1) cat("\n Newton-Raphson:: \n")
-  #   if(display) cat("Iter = ", formatC(i, digits = 0, width = 3, format = "d"),
-  #                   " alpha = ", formatC(alpha*2, digits = 9, width = 10, format = "f"),
-  #                   " --- ||g||^2 = ", formatC(sum(g^2), digits = 15, width = 16, format = "f"),
-  #                   " --- max |g| = ", formatC(nmg, digits = 9, width = 10, format = "f"),"\n",sep = "")
-  #
-  #   if(nmg < tol){break}
-  #   alpha <- alpha0
-  #   L0 <- L1; theta0 <- theta1
-  # }
-#
-#   theta1 <- descalecoef.Qlm(theta1, scaleVars$Stats)
-#   L1 <- qlmLoss(theta1, y0, X0, w, bfun)
-#   temp <- Qlm.ee.u(theta1, X0, w, bfun, L1, J = TRUE)
-#   g <- temp$g
-#   H <- temp$H
+  theta1 <- descalecoef.Qlm(fit$theta, ss)
+  G <- eefun(theta1, TRUE, yy = y0, XX = X0)
+  H <- G$J
+  covar <- tryCatch(sandwich(H, G$g.i, w), error = function(e) NULL)
+  if (is.null(covar)) stop("the Hessian is singular", call. = FALSE)
+  pn <- c("log(sigma)", xnames[ok])
+  dimnames(covar) <- dimnames(H) <- list(pn, pn)
 
-  theta <- rep(NA, nvars+1); theta[c(TRUE, ok)] <- c(theta1)
-  # covar <- Qlm.covar(temp$g.i, w, H)
-  gradient <- g[-1]
-  covarPhi <- covar[1, 1]; covar <- covar[-1, -1, drop = FALSE]
-  H <- H[-1, -1, drop = FALSE]
-
-  coefficients <- theta[-1]
-  dispersion <- exp(theta[1])^2
-  attr(dispersion, "std.err") <- sqrt(covarPhi)
-
-  se <- sqrt(diag(covar))
-  std.errs <- coefficients; std.errs[ok] <- se
-
+  coefficients <- std.errs <- setNames(rep(NA_real_, nvars), xnames)
+  coefficients[ok] <- theta1[-1]
+  std.errs[ok] <- sqrt(diag(covar)[-1])
   fitted.values <- drop(X0 %*% theta1[-1])
   residuals <- drop(y0 - fitted.values)
-  df.residual <- nobs - rank
+  names(fitted.values) <- names(residuals) <- names(y0)
+  sigma <- exp(theta1[1]); names(sigma) <- NULL
+  attr(sigma, "std.err") <- sqrt(covar[1, 1])
+  gradient <- G$g / nobs; names(gradient) <- pn
+  CDF <- G$loss$p.i; names(CDF) <- names(y0)
 
-  colnames(covar) <- rownames(covar) <- names(gradient) <- xnames[ok]
-  names(coefficients) <- names(std.errs) <- xnames
-  names(fitted.values) <- names(residuals) <- ynames
-
-  list(coefficients = coefficients, std.errs = std.errs, covar = covar, dispersion = dispersion, residuals = residuals,
-       rank = rank, fitted.values = fitted.values, assign = assign, qr = QR, df.residual = df.residual,
-       obj.function = L1$Loss, gradient = gradient, hessian = H, CDF = L1$p.i, convergence = fit$converged,
-       n.it = fit$n.it, control = control)
+  list(coefficients = coefficients, std.errs = std.errs, covar = covar[-1, -1, drop = FALSE],
+       dispersion = sigma^2, sigma = sigma, residuals = residuals, fitted.values = fitted.values,
+       rank = rank, df.residual = nobs - rank, weights = w, obj.function = G$loss$Loss,
+       gradient = gradient, hessian = H, covar.full = covar, CDF = CDF,
+       converged = fit$converged, n.it = fit$n.it, control = control, wtau = wtau, wtauoptions = list(...))
 }
-

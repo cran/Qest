@@ -1,4 +1,5 @@
-# Qcoxph estimating equations (building blocks below)
+# Qcoxph estimating equations and their Jacobian, with the closed forms of
+# Sottile and Frumento (2022, Appendix D2). Building blocks below.
 # The argument "eps" is not used, but is required for compatibility with Qest.newton.
 
 # Estimating equation + Jacobian of a Cox model with censored data.
@@ -1030,20 +1031,117 @@ A_beta_gamma_fun <- function(BB){
   list(A = A, AA = AA, AA1 = AA1)
 }
 
+# Basis of a piecewise linear function.
+plfcox <- function(y, knots, deriv = 0){ # knots incl. boundary
 
+  if(length(knots) == 2){
+    if(deriv == 0){return(cbind(y - knots[1]))}
+    else{return(list(b = cbind(y - knots[1]), b1 = cbind(rep(1,length(y)))))}
+  }
+  intknots <- knots[2:(length(knots) - 1)]
+  k <- length(intknots)
+  ind1 <- 1
+  ind2 <- NULL
+  for (j in intknots){ind1 <- cbind(ind1,(y > j))}
+  for (j in k:1) {ind2 <- cbind(ind2, ind1[, j] - ind1[, j + 1])}
+  ind2 <- cbind(ind1[, k + 1], ind2)[, (k + 1):1, drop = FALSE]
+  ind1 <- cbind(ind1, 0)
 
+  b <- NULL
+  for (j in 1:(k + 1)){b <- cbind(b, (y - knots[j])*ind2[, j] + (knots[j + 1] - knots[j])*ind1[, j + 1])}
+  colnames(b) <- paste("b", 1:(k + 1), sep = "")
+  attr(b, "knots") <- knots
+  if(deriv == 0){return(b)}
+  else{return(list(b = b, b1 = ind2))}
+}
 
+# Transform the scale of y and X in a Cox model.
+scalevars.Qcoxph <- function(X,z,y,knots){
 
+  mX <- colMeans(X)
+  sX <- apply(X, 2, sd)
+  X <- scale(X, center = mX, scale = sX)
 
+  My <- max(y)
+  y <- y/My*10
+  z <- z/My*10
+  knots <- knots/My*10
+  Stats <- list(mX = mX, sX = sX, My = My)
 
+  list(X = X, z = z, y = y, knots = knots, Stats = Stats)
+}
 
+descalecoef.Qcoxph <- function(theta, Stats){
 
+  q <- length(Stats$mX)
+  beta <- theta[1:q]
+  log.gamma <- theta[(q + 1):length(theta)]
 
+  beta <- beta/Stats$sX
+  log.gamma <- log.gamma + log(10/Stats$My) - sum(beta*Stats$mX)
 
+  c(beta, log.gamma)
+}
 
+# Positive slopes for the starting points of H0.
+adjust.coef <- function(theta){
+  id <- which(theta <= 0)
+  id1 <- which(theta > 0)
+  k <- length(theta)
+  if(length(id) != 0){
+    for(i in rev(id)){
+      theta[i] <- if(i == 1) theta[i+1]/k else median(theta[-unique(c(k:i, id))])/k
+    }
+  }
+  theta
+}
 
+# Loss of Cox model.
+# If the data are not censored and not truncated, there is an analytical expression:
+# A <- .rowSums(t(t(BBy$dWmins)*BBy$c1) + BBy$dRmins, n, k + 1)
+# AA1 <- .rowSums(t(t(BBy$diWknots_dWknots1)*BBy$c1) + BBy$diRknots_dRknots1, n, k + 1)
+# L <- sum(w*(y*(tau$Wfun(Fy) - tau$iWfun(1)) + AA1 - A))
+# However, I assume that cox model will (almost) always be used with censored or truncated data
+# (which is why I did not bother to implement QCox.ee.u), and I keep the code simple by
+# directly computing the numeric integral that is needed with censored or truncated data.
+coxLoss <- function(theta, z, y, d, X, w, knots, tau, type, Fy, Fz){
 
+  Ltau <- function(opt, tau){opt$tau <- tau; opt}
+  n <- nrow(X)
+  q <- ncol(X)
+  k <- length(knots) - 2
+  beta <- (theta[1:q]) # Cox regression coefficients
+  egamma <- exp(theta[(q + 1):length(theta)]) # coefficients of H0
+  HR1 <- exp(-c(X%*%beta))
 
+  # Quantile function evaluated on a grid
 
+  taugrid <- c(1e-6, (1:99)/100, 1 - 1e-6); dtau <- 0.01; ntau <- length(taugrid)
+  TAU <- t(matrix(taugrid, ntau, n))
+  log1_tau <- log(1 - taugrid)
+  u <- -HR1*rep(log1_tau, each = n) # vector of length n*ntau
 
+  knotsinv <- c(plfcox(knots, knots = knots)%*%egamma) # knots of the inverse of b
+  knotsinv_long <- unique(c(0, knotsinv, -max(HR1)*log1_tau[ntau])) # plfcox can project outside range, approx cannot.
+  binv <- plfcox(knotsinv_long, knotsinv)
 
+  Qcoxtemp <- c(binv%*%(1/egamma))
+  Qcox <- approx(knotsinv_long, Qcoxtemp, xout = u, method = "linear")$y + knots[1]
+  qq <- matrix(Qcox, n, ntau) # A matrix n*ntau.
+
+  # Pseudo-Loss for censored or truncated data. With "u" data, omega = omegay.
+
+  delta <- y - qq
+  omegay <- (delta <= 0)
+  omega <- omegay + (1 - d)*omegay*(TAU - 1)/(1 - pmin(Fy, 1 - 1e-10))
+  if(type == "ct"){
+    deltaz <- z - qq
+    omegaz <- (deltaz <= 0)
+    omega <- omega - omegaz - omegaz*(TAU - 1)/(1 - pmin(Fz, 1 - 1e-10)) + TAU
+  }
+
+  wtau <- do.call(tau$wfun, Ltau(tau$opt, taugrid))
+  out <- delta*(TAU - omega)
+  out <- out %*% (dtau*wtau)
+  sum(w*out)
+}
